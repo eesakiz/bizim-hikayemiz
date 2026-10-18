@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && 'email' in request.auth.token;
+    }
+    function isEditor() {
+      return signedIn() && request.auth.token.email == 'duzenle@bizimhikayemiz.app';
+    }
+    function isViewer() {
+      return signedIn() && (request.auth.token.email == 'goruntule@bizimhikayemiz.app' || isEditor());
+    }
+
+    match /sites/{site} {
+      // Site document (names, story, settings): everyone signed in reads, only the editor writes.
+      allow read: if isViewer();
+      allow write: if isEditor();
+
+      // Collaborative collections: both accounts may read and write.
+      match /notes/{id}      { allow read, write: if isViewer(); }
+      match /events/{id}     { allow read, write: if isViewer(); }
+      match /presence/{id}   { allow read, write: if isViewer(); }
+      match /countdowns/{id} { allow read, write: if isViewer(); }
+      match /planning/{id}   { allow read, write: if isViewer(); }
+      match /bucket/{id}     { allow read, write: if isViewer(); }
+
+      // Letters: the viewer may only record that a letter was opened.
+      match /letters/{id} {
+        allow read: if isViewer();
+        allow create, delete: if isEditor();
+        allow update: if isEditor()
+          || (isViewer() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['opens', 'openCount', 'lastOpenedAt']));
+      }
+
+      // Everything else (timeline, photos, photoFull, reasons, music, places): viewer reads, editor writes.
+      match /{collection}/{id} {
+        allow read: if isViewer();
+        allow write: if isEditor();
+      }
+    }
+  }
+}
