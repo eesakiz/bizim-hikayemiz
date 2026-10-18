@@ -131,13 +131,26 @@ async function unlock() {
   const site = store.data.site;
   if (site?.pinHint) sessionStorage.setItem("bh_hint", site.pinHint);
   applyTheme();
-  if (!state.me) { const k = await chooseIdentity(ctxBase(), { force: true }); if (k) { state.me = k; localStorage.setItem("bh_me", k); } }
+  if (!state.me && site?.couple) { const k = await chooseIdentity(ctxBase(), { force: true }); if (k) { state.me = k; localStorage.setItem("bh_me", k); } }
+  else if (!state.me) state.needIdentity = true; // ask once the names are known
   renderAll();
   setupObservers();
   presence();
   visitEvent();
   announceNewEvents(); // sets the baseline so only *new* events are announced
   state.unlocked = true;
+  emptyNotice();
+}
+
+// Shown while the database is still empty (first run).
+function emptyNotice() {
+  const store = state.store; let n = $("#empty-notice");
+  if (store.data.site) { n?.remove(); return; }
+  if (!n) { n = document.createElement("div"); n.id = "empty-notice"; n.className = "empty-notice"; document.body.appendChild(n); }
+  n.innerHTML = store.isEditor
+    ? `<b>Henüz içerik yüklenmedi.</b> Hazır içerik dosyasını yüklemek için <button class="btn primary small" data-import>${icons.upload} Yedekten içe aktar</button>`
+    : `<b>Sayfa hazırlanıyor…</b> İçerik henüz yüklenmedi. <span class="muted">Düzenleme PIN'i ile giriş yapıp içeriği içe aktarabilirsin.</span>`;
+  n.querySelector("[data-import]")?.addEventListener("click", () => openBackup(ctxBase()));
 }
 
 function waitReady(store) {
@@ -298,11 +311,14 @@ async function boot() {
   store.on("change", (col) => {
     if (!state.unlocked) return;
     for (const s of SECTIONS) if (s.deps.includes(col)) { clearTimeout(scheduled.get(s.id)); scheduled.set(s.id, setTimeout(() => renderSection(s), 40)); }
-    if (col === "site") { applyTheme(); updateChrome(); }
+    if (col === "site") {
+      applyTheme(); updateChrome(); emptyNotice();
+      if (state.needIdentity && store.data.site?.couple) { state.needIdentity = false; chooseIdentity(ctxBase(), { force: true }).then(k => { if (k) { state.me = k; localStorage.setItem("bh_me", k); renderAll(); visitEvent(); } }); }
+    }
     if (col === "events") { updateBell(); announceNewEvents(); }
     if (col === "presence") updatePresence();
   });
-  store.on("auth", () => { if (state.unlocked) renderAll(); });
+  store.on("auth", () => { if (state.unlocked) { renderAll(); emptyNotice(); } });
   store.on("error", (err) => { if (err?.code === "permission-denied") toast("Erişim reddedildi — yeniden giriş yapmayı dene.", { type: "error" }); });
 
   // Already signed in (same-tab reload)? Skip the gate.

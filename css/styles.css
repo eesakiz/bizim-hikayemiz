@@ -586,6 +586,10 @@ html:not([data-theme="gece"]) .cc b{color:var(--text)}
 .ev-text{font-size:14px;color:var(--muted)}
 .ev-meta{font-size:12px;color:var(--muted-2);margin-top:2px}
 
+/* ---------- Empty-state notice ---------- */
+.empty-notice{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:35;width:min(560px,calc(100% - 32px));padding:14px 18px;border-radius:16px;background:var(--surface-solid);border:1px solid var(--accent);box-shadow:var(--shadow);font-size:14.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;text-align:center}
+.empty-notice .btn{margin-left:4px}
+
 /* ---------- Toasts ---------- */
 #toast-host{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:90;display:grid;gap:8px;pointer-events:none;width:min(420px,calc(100% - 32px))}
 .toast{padding:12px 18px;border-radius:14px;background:var(--surface-solid);color:var(--text);border:1px solid var(--line);box-shadow:var(--shadow);font-size:14.5px;text-align:center;opacity:0;transform:translateY(10px);transition:all .3s var(--ease)}
