@@ -240,10 +240,18 @@ export class Store extends EventTarget {
       if (!Array.isArray(docs)) continue;
       for (const d of docs) { const { id, ...data } = d; ops.push({ type: "set", path: `${this.base}/${c}/${id || uid()}`, data, merge: false }); }
     }
-    // delete ops first, then sets; chunk with progress
+    // delete ops first, then sets; chunk by count AND payload size (Firestore batches max 10 MiB / 500 writes)
     const dels = ops.filter(o => o.type === "delete"), sets = ops.filter(o => o.type !== "delete");
     const all = [...dels, ...sets]; let done = 0;
-    for (let i = 0; i < all.length; i += 60) { await this.adapter.batch(all.slice(i, i + 60)); done = Math.min(all.length, i + 60); onProgress && onProgress(done, all.length); }
+    const MAX_BYTES = 6 * 1024 * 1024, MAX_OPS = 200;
+    let chunk = [], bytes = 0;
+    const flush = async () => { if (!chunk.length) return; await this.adapter.batch(chunk); done += chunk.length; onProgress && onProgress(done, all.length); chunk = []; bytes = 0; };
+    for (const op of all) {
+      const size = op.data ? JSON.stringify(op.data).length : 64;
+      if (chunk.length && (bytes + size > MAX_BYTES || chunk.length >= MAX_OPS)) await flush();
+      chunk.push(op); bytes += size;
+    }
+    await flush();
     return all.length;
   }
 }
