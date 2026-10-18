@@ -1,11 +1,21 @@
 // "Planlayıcı": engagement / wedding planning — tasks, venues (with comments), budget, guests, notes.
 // Collaborative: both people can edit (no editor PIN needed).
-import { esc, nl2br, fmtDate, icons, uid, toISODate, daysBetween, parseLocal, relTime } from "../util.js";
-import { sectionHead, openForm, itemTools, addButton, emptyState, confirmDialog, toast } from "../ui.js";
+import { esc, nl2br, fmtDate, icons, uid, toISODate, daysBetween, parseLocal, relTime, compressImage } from "../util.js";
+import { sectionHead, openForm, itemTools, addButton, emptyState, confirmDialog, toast, openLightbox } from "../ui.js";
 
 const STATUS = { aday: { label: "Aday", cls: "s-aday" }, favori: { label: "Favori", cls: "s-fav" }, gorusuldu: { label: "Görüşüldü", cls: "s-talk" }, secildi: { label: "Seçildi ✓", cls: "s-ok" }, elendi: { label: "Elendi", cls: "s-no" } };
 const GSTATUS = { bekliyor: "Bekliyor", geliyor: "Geliyor", gelmiyor: "Gelmiyor" };
 const TL = (n) => (Number(n) || 0).toLocaleString("tr-TR", { maximumFractionDigits: 0 }) + " ₺";
+function thumbs(ids, ctx, cls = "") {
+  const media = ctx.data.planmedia || []; const list = (ids || []).map(id => media.find(m => m.id === id)).filter(Boolean);
+  if (!list.length) return "";
+  return `<div class="thumbs ${cls}">${list.map(m => `<button type="button" class="thumb" data-media="${m.id}" aria-label="Görseli büyüt"><img src="${m.thumb}" alt="" loading="lazy"></button>`).join("")}</div>`;
+}
+function openMedia(ctx, ids, id) {
+  const media = ctx.data.planmedia || []; const list = (ids || []).map(x => media.find(m => m.id === x)).filter(Boolean);
+  const i = Math.max(0, list.findIndex(m => m.id === id));
+  openLightbox(list.map(m => ({ ...m, caption: m.caption || "" })), i, { getFull: (mid) => ctx.store.getFullIn("planmediaFull", mid) });
+}
 
 export function render(el, ctx) {
   const plans = ctx.data.planning || [];
@@ -21,6 +31,8 @@ export function render(el, ctx) {
   el.onclick = async (e) => {
     const tab = e.target.closest("[data-plan]"); if (tab) { el.dataset.curPlan = tab.dataset.plan; return render(el, ctx); }
     const st = e.target.closest("[data-sub]"); if (st) { el.dataset.curSub = st.dataset.sub; return render(el, ctx); }
+    const th = e.target.closest("[data-media]");
+    if (th && P) { const row = e.target.closest("[data-row]"); const subNow = el.dataset.curSub || "tasks"; const list = { tasks: P.tasks || [], venues: P.venues || [] }[subNow] || []; const item = list.find(x => x.id === row?.dataset.row); openMedia(ctx, item?.images || [th.dataset.media], th.dataset.media); return; }
     const act = e.target.closest("[data-act]"); if (!act) return;
     if (!can) return;
     const a = act.dataset.act;
@@ -34,7 +46,7 @@ export function render(el, ctx) {
     switch (a) {
       case "add": return openItemForm(ctx, P, sub, null);
       case "edit": return item && openItemForm(ctx, P, sub, item);
-      case "del": if (item && await confirmDialog("Silinsin mi?", { ok: "Sil", danger: true })) return save(list.filter(x => x.id !== rid)); return;
+      case "del": if (item && await confirmDialog("Silinsin mi?", { ok: "Sil", danger: true })) { for (const mid of item.images || []) { ctx.store.remove("planmedia", mid).catch(() => { }); ctx.store.removeFullIn("planmediaFull", mid).catch(() => { }); } return save(list.filter(x => x.id !== rid)); } return;
       case "toggle": if (item) { const done = !item.done; return save(list.map(x => x.id === rid ? { ...x, done, doneAt: done ? new Date().toISOString() : "", doneBy: done ? ctx.me || "" : "" } : x)); } return;
       case "paid": if (item) return save(list.map(x => x.id === rid ? { ...x, paid: !x.paid } : x)); return;
       case "status": if (item) { const s = act.dataset.status; const arr = list.map(x => x.id === rid ? { ...x, status: s } : (s === "secildi" && x.status === "secildi" ? { ...x, status: "favori" } : x)); return save(arr); } return;
@@ -84,7 +96,7 @@ function renderTasks(P, ctx) {
     ${shown.length ? Object.entries(cats).map(([cat, arr]) => `<div class="task-group"><h4 class="task-cat">${esc(cat)} <span class="muted">${arr.filter(t => t.done).length}/${arr.length}</span></h4><ul class="tasks">${arr.map(t => `
       <li class="task ${t.done ? "done" : ""} ${t.due && !t.done && t.due < today ? "late" : ""}" data-row="${t.id}">
         <button class="check" data-act="toggle" aria-label="Tamamla" ${can ? "" : "disabled"}>${t.done ? icons.check : ""}</button>
-        <div class="task-main"><div class="task-text">${esc(t.text)}</div><div class="task-meta">${t.due ? `<span class="chip">${icons.calendar} ${fmtDate(t.due, { noYear: true })}</span>` : ""}${t.who ? `<span class="chip who-${t.who}">${esc(who(ctx, t.who))}</span>` : ""}${t.note ? `<span class="task-note">${esc(t.note)}</span>` : ""}${t.done && t.doneBy ? `<span class="muted small">${esc(who(ctx, t.doneBy))} tamamladı</span>` : ""}</div></div>
+        <div class="task-main"><div class="task-text">${esc(t.text)}</div><div class="task-meta">${t.due ? `<span class="chip">${icons.calendar} ${fmtDate(t.due, { noYear: true })}</span>` : ""}${t.who ? `<span class="chip who-${t.who}">${esc(who(ctx, t.who))}</span>` : ""}${t.note ? `<span class="task-note">${esc(t.note)}</span>` : ""}${t.done && t.doneBy ? `<span class="muted small">${esc(who(ctx, t.doneBy))} tamamladı</span>` : ""}</div>${thumbs(t.images, ctx, "small")}</div>
         ${can ? itemTools({ edit: true, del: true }) : ""}
       </li>`).join("")}</ul></div>`).join("") : emptyState(filter === "done" ? "Henüz tamamlanan görev yok." : filter === "open" ? "Açık görev yok 🎉" : "Görev yok.")}`;
 }
@@ -96,6 +108,7 @@ function renderVenues(P, ctx) {
       <article class="card venue ${v.status === "secildi" ? "chosen" : ""} ${v.status === "elendi" ? "out" : ""}" data-row="${v.id}">
         <div class="venue-head"><div><h4>${esc(v.name)}</h4><div class="muted">${[v.city, v.capacity ? `${esc(v.capacity)} kişi` : "", v.price].filter(Boolean).map(esc).join(" · ")}</div></div><span class="badge ${s.cls}">${s.label}</span></div>
         ${v.note ? `<p class="venue-note">${nl2br(v.note)}</p>` : ""}
+        ${thumbs(v.images, ctx)}
         <div class="venue-links">${v.url ? `<a class="btn small ghost" href="${esc(v.url)}" target="_blank" rel="noopener">${icons.external} Bağlantı</a>` : ""}${v.maps ? `<a class="btn small ghost" href="${esc(v.maps)}" target="_blank" rel="noopener">${icons.pin} Harita</a>` : ""}</div>
         ${can ? `<div class="status-row">${Object.entries(STATUS).map(([k, st]) => `<button class="chip-btn ${v.status === k ? "on" : ""}" data-act="status" data-status="${k}">${st.label}</button>`).join("")}</div>` : ""}
         <div class="comments">${(v.comments || []).map(c => `<div class="comment ${c.by === ctx.me ? "mine" : ""}"><div class="c-head"><b>${esc(who(ctx, c.by) || "—")}</b><span class="muted">${relTime(c.at)}</span>${can && c.by === ctx.me ? `<button class="tool danger" data-act="delcomment" data-cid="${c.id}" aria-label="Yorumu sil">${icons.trash}</button>` : ""}</div><div>${nl2br(c.text)}</div></div>`).join("")}
@@ -153,7 +166,8 @@ function openItemForm(ctx, P, sub, item) {
       { key: "due", label: "Son tarih", type: "date", half: true },
       { key: "who", label: "Kim ilgilenecek", type: "person", allowBoth: true, half: true },
       { key: "note", label: "Not", half: true },
-    ], make: (v, old) => ({ id: old?.id || uid("t"), text: v.text, cat: v.cat || "", due: v.due || "", who: v.who || "", note: v.note || "", done: old?.done || false, doneAt: old?.doneAt || "", doneBy: old?.doneBy || "" }) },
+      { key: "images", label: "Görseller", type: "images" },
+    ], make: (v, old) => ({ id: old?.id || uid("t"), text: v.text, cat: v.cat || "", due: v.due || "", who: v.who || "", note: v.note || "", images: v.images || [], done: old?.done || false, doneAt: old?.doneAt || "", doneBy: old?.doneBy || "" }) },
     venues: { title: "Mekân", fields: [
       { key: "name", label: "Mekân adı", required: true, half: true },
       { key: "city", label: "Şehir / ilçe", half: true },
@@ -163,7 +177,8 @@ function openItemForm(ctx, P, sub, item) {
       { key: "url", label: "Web / Instagram", type: "url", half: true },
       { key: "maps", label: "Google Haritalar bağlantısı", type: "url" },
       { key: "note", label: "Notlar (artılar, eksiler)", type: "textarea", rows: 3 },
-    ], make: (v, old) => ({ id: old?.id || uid("v"), name: v.name, city: v.city || "", status: v.status || "aday", capacity: v.capacity || "", price: v.price || "", url: v.url || "", maps: v.maps || "", note: v.note || "", comments: old?.comments || [], addedBy: old?.addedBy || ctx.me || "" }) },
+      { key: "images", label: "Görseller", type: "images" },
+    ], make: (v, old) => ({ id: old?.id || uid("v"), name: v.name, city: v.city || "", status: v.status || "aday", capacity: v.capacity || "", price: v.price || "", url: v.url || "", maps: v.maps || "", note: v.note || "", images: v.images || [], comments: old?.comments || [], addedBy: old?.addedBy || ctx.me || "" }) },
     budget: { title: "Bütçe kalemi", fields: [
       { key: "item", label: "Kalem", required: true, half: true },
       { key: "cat", label: "Kategori", half: true },
@@ -181,8 +196,18 @@ function openItemForm(ctx, P, sub, item) {
     ], make: (v, old) => ({ id: old?.id || uid("g"), name: v.name, count: Number(v.count) || 1, side: v.side || "ortak", status: v.status || "bekliyor", note: v.note || "" }) },
   }[sub];
   if (!defs) return;
+  const uploadMedia = async (files) => {
+    const ids = [];
+    for (const f of files) {
+      const [full, thumb] = await Promise.all([compressImage(f, { maxSide: 1400, targetKB: 300 }), compressImage(f, { maxSide: 480, targetKB: 45, quality: 0.8 })]);
+      const id = await ctx.store.upsert("planmedia", null, { thumb: thumb.dataUrl, w: full.w, h: full.h, plan: P.id, ref: `${sub}:${item?.id || ""}`, order: Date.now(), addedBy: ctx.me || "" });
+      await ctx.store.setFullIn("planmediaFull", id, full.dataUrl); ids.push(id);
+    }
+    return ids;
+  };
+  const removeMedia = (id) => { ctx.store.remove("planmedia", id).catch(() => { }); ctx.store.removeFullIn("planmediaFull", id).catch(() => { }); };
   return openForm({
-    title: `${defs.title} ${isNew ? "ekle" : "düzenle"}`, fields: defs.fields, value: item || (sub === "guests" ? { count: 1, side: "ortak", status: "bekliyor" } : sub === "venues" ? { status: "aday" } : {}), autosave: !isNew, ctx: { people },
+    title: `${defs.title} ${isNew ? "ekle" : "düzenle"}`, fields: defs.fields, value: item || (sub === "guests" ? { count: 1, side: "ortak", status: "bekliyor" } : sub === "venues" ? { status: "aday" } : {}), autosave: !isNew, ctx: { people, media: ctx.data.planmedia || [], uploadMedia, removeMedia },
     onSave: async (v) => { const obj = defs.make(v, item); const i = list.findIndex(x => x.id === obj.id); if (i >= 0) list[i] = obj; else list.push(obj); item = obj; await ctx.store.update("planning", P.id, { [sub]: list, updatedAt: new Date().toISOString(), updatedBy: ctx.me || "" }); },
     onDelete: item ? () => ctx.store.update("planning", P.id, { [sub]: list.filter(x => x.id !== item.id) }) : undefined,
   });

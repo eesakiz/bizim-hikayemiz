@@ -143,6 +143,26 @@ function renderField(f, values, ctx) {
     const people = ctx.people || [];
     wrap.innerHTML = `${lab}<select name="${f.key}">${[{ value: "", label: "—" }, ...people.map(p => ({ value: p.key, label: p.name })), ...(f.allowBoth ? [{ value: "both", label: "İkimiz" }] : [])].map(o => `<option value="${o.value}" ${o.value === v ? "selected" : ""}>${esc(o.label)}</option>`).join("")}</select>${help}`;
   }
+  else if (t === "images") {
+    const media = ctx.media || [];
+    const render = () => {
+      const ids = Array.isArray(values[f.key]) ? values[f.key] : [];
+      wrap.innerHTML = `${lab}<div class="images-field"><div class="thumbs">${ids.map(id => { const m = media.find(x => x.id === id); return m ? `<span class="thumb-wrap"><img src="${m.thumb}" alt=""><button type="button" class="thumb-x" data-rm="${id}" aria-label="Kaldır">${icons.close}</button></span>` : ""; }).join("")}<label class="thumb-add" title="Görsel ekle">${icons.plus}<input type="file" accept="image/*" multiple hidden></label></div><div class="field-help" data-st></div></div>${help}`;
+    };
+    render();
+    wrap.addEventListener("change", async (e) => {
+      if (!e.target.matches("input[type=file]")) return;
+      const files = Array.from(e.target.files || []); if (!files.length) return;
+      const st = wrap.querySelector("[data-st]"); st.textContent = `${files.length} görsel yükleniyor…`;
+      try { const ids = await ctx.uploadMedia(files); values[f.key] = [...(values[f.key] || []), ...ids]; render(); wrap.dispatchEvent(new CustomEvent("bh:fieldchange", { bubbles: true })); }
+      catch (err) { console.error(err); st.textContent = "Yüklenemedi: " + (err.message || err); }
+    });
+    wrap.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-rm]"); if (!b) return; e.preventDefault();
+      values[f.key] = (values[f.key] || []).filter(x => x !== b.dataset.rm); ctx.removeMedia?.(b.dataset.rm); render();
+      wrap.dispatchEvent(new CustomEvent("bh:fieldchange", { bubbles: true }));
+    });
+  }
   else if (t === "tags") wrap.innerHTML = `${lab}<input type="text" name="${f.key}" value="${esc(Array.isArray(v) ? v.join(", ") : v)}" placeholder="${esc(f.placeholder || "virgülle ayır")}">${help}`;
   else {
     const type = t === "datetime" ? "datetime-local" : t;

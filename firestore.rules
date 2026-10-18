@@ -24,6 +24,8 @@ service cloud.firestore {
       match /countdowns/{id} { allow read, write: if isViewer(); }
       match /planning/{id}   { allow read, write: if isViewer(); }
       match /bucket/{id}     { allow read, write: if isViewer(); }
+      match /planmedia/{id}     { allow read, write: if isViewer(); }
+      match /planmediaFull/{id} { allow read, write: if isViewer(); }
 
       // Letters: the viewer may only record that a letter was opened.
       match /letters/{id} {

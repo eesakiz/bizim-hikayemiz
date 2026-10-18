@@ -3,7 +3,7 @@
 import { AUTH, LOCAL_PINS, SITE_ID } from "./config.js";
 import { uid } from "./util.js";
 
-export const COLLECTIONS = ["timeline", "photos", "letters", "reasons", "music", "places", "countdowns", "planning", "bucket", "notes", "events", "presence"];
+export const COLLECTIONS = ["timeline", "photos", "letters", "reasons", "music", "places", "countdowns", "planning", "planmedia", "bucket", "notes", "events", "presence"];
 
 // Field-value sentinels (adapter-independent)
 export const FV = {
@@ -199,6 +199,10 @@ export class Store extends EventTarget {
   getFull(photoId) { return this.adapter.get(`${this.base}/photoFull/${photoId}`); }
   setFull(photoId, data) { return this.adapter.set(`${this.base}/photoFull/${photoId}`, { data }, false); }
   removeFull(photoId) { return this.adapter.del(`${this.base}/photoFull/${photoId}`); }
+  // Full-size images of other media collections (e.g. planner images live in planmedia / planmediaFull)
+  getFullIn(col, id) { return this.adapter.get(`${this.base}/${col}/${id}`); }
+  setFullIn(col, id, data) { return this.adapter.set(`${this.base}/${col}/${id}`, { data }, false); }
+  removeFullIn(col, id) { return this.adapter.del(`${this.base}/${col}/${id}`); }
   // Reorder: assign order = index for given ids
   async reorder(col, ids) {
     await this.adapter.batch(ids.map((id, i) => ({ type: "update", path: `${this.base}/${col}/${id}`, data: { order: i } })));
@@ -225,6 +229,8 @@ export class Store extends EventTarget {
     if (includePhotos) {
       out.collections.photoFull = [];
       for (const p of this.data.photos || []) { const f = await this.getFull(p.id); if (f) out.collections.photoFull.push({ id: p.id, data: f.data }); }
+      out.collections.planmediaFull = [];
+      for (const m of this.data.planmedia || []) { const f = await this.getFullIn("planmediaFull", m.id); if (f) out.collections.planmediaFull.push({ id: m.id, data: f.data }); }
     }
     return out;
   }
@@ -233,6 +239,7 @@ export class Store extends EventTarget {
     if (replace) {
       for (const c of COLLECTIONS) for (const d of this.data[c] || []) ops.push({ type: "delete", path: `${this.base}/${c}/${d.id}` });
       for (const p of this.data.photos || []) ops.push({ type: "delete", path: `${this.base}/photoFull/${p.id}` });
+      for (const m of this.data.planmedia || []) ops.push({ type: "delete", path: `${this.base}/planmediaFull/${m.id}` });
     }
     if (json.site) { const { id, ...site } = json.site; ops.push({ type: "set", path: this.base, data: site, merge: !replace }); }
     const cols = json.collections || {};

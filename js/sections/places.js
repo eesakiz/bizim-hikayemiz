@@ -32,8 +32,8 @@ function initMap(container, places, ctx) {
   if (!window.L || !container) return;
   if (map) { try { map.remove(); } catch { } map = null; markers = {}; }
   map = L.map(container, { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
-  const dark = ctx.themeDark;
-  L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`, { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>', subdomains: "abcd", maxZoom: 19 }).addTo(map);
+  container.classList.toggle("dark", !!ctx.themeDark);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> katkıda bulunanlar', maxZoom: 19 }).addTo(map);
   const pts = [];
   for (const p of places) {
     if (typeof p.lat !== "number" || typeof p.lng !== "number") continue;

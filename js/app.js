@@ -28,7 +28,7 @@ const SECTIONS = [
   { id: "muzik", mod: music, label: "Müzik", icon: "🎶", deps: ["music", "site"] },
   { id: "yerler", mod: places, label: "Yerlerimiz", icon: "🗺️", deps: ["places", "photos", "site"] },
   { id: "takvim", mod: countdowns, label: "Takvim", icon: "🗓️", deps: ["countdowns", "site"] },
-  { id: "plan", mod: planning, label: "Planlayıcı", icon: "💍", deps: ["planning", "site", "photos"] },
+  { id: "plan", mod: planning, label: "Planlayıcı", icon: "💍", deps: ["planning", "planmedia", "site", "photos"] },
   { id: "hayaller", mod: bucket, label: "Hayaller", icon: "🌟", deps: ["bucket", "site"] },
   { id: "defter", mod: notes, label: "Not Defteri", icon: "📝", deps: ["notes", "site"] },
 ];
